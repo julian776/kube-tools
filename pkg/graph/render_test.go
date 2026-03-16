@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/julianalvarez/kube-tools/pkg/kube"
+	"github.com/julian776/kube-tools/pkg/kube"
 )
 
 func TestBar(t *testing.T) {

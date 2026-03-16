@@ -15,7 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcwait "github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/julianalvarez/kube-tools/pkg/kube"
+	"github.com/julian776/kube-tools/pkg/kube"
 )
 
 // startMetricsServer starts an HTTP server on a random port that exposes

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/julianalvarez/kube-tools/pkg/kube"
+	"github.com/julian776/kube-tools/pkg/kube"
 )
 
 func mockFetcher(tr TimeRange) ([]kube.ResourceMetrics, error) {

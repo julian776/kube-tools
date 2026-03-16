@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/julianalvarez/kube-tools/pkg/kube"
+	"github.com/julian776/kube-tools/pkg/kube"
 )
 
 const barMaxWidth = 40

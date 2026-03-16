@@ -13,13 +13,13 @@ A CLI toolkit for visualizing Kubernetes resource usage.
 ## Installation
 
 ```bash
-go install github.com/julianalvarez/kube-tools@latest
+go install github.com/julian776/kube-tools@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/julianalvarez/kube-tools.git
+git clone https://github.com/julian776/kube-tools.git
 cd kube-tools
 go build -o kube-tools .
 ```

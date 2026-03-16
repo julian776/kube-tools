@@ -9,7 +9,7 @@ import (
 	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 
-	"github.com/julianalvarez/kube-tools/pkg/kube"
+	"github.com/julian776/kube-tools/pkg/kube"
 )
 
 // Client wraps the Prometheus HTTP API for querying container metrics.

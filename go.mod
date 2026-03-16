@@ -1,4 +1,4 @@
-module github.com/julianalvarez/kube-tools
+module github.com/julian776/kube-tools
 
 go 1.25.6
 

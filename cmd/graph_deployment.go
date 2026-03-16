@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/julianalvarez/kube-tools/pkg/graph"
-	"github.com/julianalvarez/kube-tools/pkg/kube"
-	promclient "github.com/julianalvarez/kube-tools/pkg/prometheus"
+	"github.com/julian776/kube-tools/pkg/graph"
+	"github.com/julian776/kube-tools/pkg/kube"
+	promclient "github.com/julian776/kube-tools/pkg/prometheus"
 	"github.com/spf13/cobra"
 )
 
