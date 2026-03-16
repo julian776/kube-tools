@@ -34,8 +34,16 @@ var graphPodCmd = &cobra.Command{
 
 		var fetcher graph.MetricsFetcher
 
-		if prometheusURL != "" {
-			pc, err := promclient.NewClient(prometheusURL)
+		promURL, stopFn, err := resolvePrometheusURL()
+		if err != nil {
+			return err
+		}
+		if stopFn != nil {
+			defer stopFn()
+		}
+
+		if promURL != "" {
+			pc, err := promclient.NewClient(promURL)
 			if err != nil {
 				return fmt.Errorf("failed to create prometheus client: %w", err)
 			}

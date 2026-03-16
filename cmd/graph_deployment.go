@@ -34,13 +34,20 @@ var graphDeploymentCmd = &cobra.Command{
 
 		var fetcher graph.MetricsFetcher
 
-		if prometheusURL != "" {
-			pc, err := promclient.NewClient(prometheusURL)
+		promURL, stopFn, err := resolvePrometheusURL()
+		if err != nil {
+			return err
+		}
+		if stopFn != nil {
+			defer stopFn()
+		}
+
+		if promURL != "" {
+			pc, err := promclient.NewClient(promURL)
 			if err != nil {
 				return fmt.Errorf("failed to create prometheus client: %w", err)
 			}
 
-			// For deployments with Prometheus, we need to find pod names first
 			kubeClient, err := kube.NewClient(kubeContext)
 			if err != nil {
 				return fmt.Errorf("failed to create kube client: %w", err)
@@ -53,14 +60,13 @@ var graphDeploymentCmd = &cobra.Command{
 					step = 15 * time.Second
 				}
 
-				// Get deployment's pods via kube API, then query each from Prometheus
-				depMetrics, err := kubeClient.GetDeploymentPodNames(namespace, name)
+				podNames, err := kubeClient.GetDeploymentPodNames(namespace, name)
 				if err != nil {
 					return nil, err
 				}
 
 				var allMetrics []kube.ResourceMetrics
-				for _, podName := range depMetrics {
+				for _, podName := range podNames {
 					podMetrics, err := pc.QueryPodMetrics(context.Background(), namespace, podName, dur, step)
 					if err != nil {
 						continue
