@@ -4,7 +4,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var namespace string
+var (
+	namespace     string
+	prometheusURL string
+)
 
 var graphCmd = &cobra.Command{
 	Use:   "graph",
@@ -14,5 +17,6 @@ var graphCmd = &cobra.Command{
 
 func init() {
 	graphCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "default", "Kubernetes namespace")
+	graphCmd.PersistentFlags().StringVar(&prometheusURL, "prometheus-url", "", "Prometheus server URL for historical metrics (e.g. http://localhost:9090)")
 	rootCmd.AddCommand(graphCmd)
 }

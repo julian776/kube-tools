@@ -262,3 +262,52 @@ func TestGetDeploymentMetrics_NotFound(t *testing.T) {
 		t.Error("expected error for nonexistent deployment")
 	}
 }
+
+func TestGetDeploymentPodNames(t *testing.T) {
+	labels := map[string]string{"app": "web"}
+
+	deps := []appsv1.Deployment{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "default"},
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+			},
+		},
+	}
+
+	pods := []corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "web-abc", Namespace: "default", Labels: labels}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "web-def", Namespace: "default", Labels: labels}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "other-pod", Namespace: "default"}},
+	}
+
+	client := newFakeClient(pods, deps, nil)
+
+	names, err := client.GetDeploymentPodNames("default", "web")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(names) != 2 {
+		t.Fatalf("expected 2 pod names, got %d", len(names))
+	}
+
+	nameSet := map[string]bool{}
+	for _, n := range names {
+		nameSet[n] = true
+	}
+	if !nameSet["web-abc"] || !nameSet["web-def"] {
+		t.Errorf("expected web-abc and web-def, got %v", names)
+	}
+}
+
+func TestGetDeploymentPodNames_NotFound(t *testing.T) {
+	client := newFakeClient(nil, nil, nil)
+
+	_, err := client.GetDeploymentPodNames("default", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent deployment")
+	}
+}

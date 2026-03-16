@@ -111,6 +111,32 @@ func (c *Client) GetPodMetrics(ns, name string) ([]ResourceMetrics, error) {
 	return []ResourceMetrics{rm}, nil
 }
 
+// GetDeploymentPodNames returns the names of pods belonging to a deployment.
+func (c *Client) GetDeploymentPodNames(ns, name string) ([]string, error) {
+	dep, err := c.kube.AppsV1().Deployments(ns).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("getting deployment: %w", err)
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("parsing selector: %w", err)
+	}
+
+	pods, err := c.kube.CoreV1().Pods(ns).List(context.Background(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing pods: %w", err)
+	}
+
+	names := make([]string, 0, len(pods.Items))
+	for _, p := range pods.Items {
+		names = append(names, p.Name)
+	}
+	return names, nil
+}
+
 // GetDeploymentMetrics fetches resource usage for all pods in a deployment.
 func (c *Client) GetDeploymentMetrics(ns, name string) ([]ResourceMetrics, error) {
 	dep, err := c.kube.AppsV1().Deployments(ns).Get(context.Background(), name, metav1.GetOptions{})
