@@ -16,11 +16,40 @@ const (
 	defaultPromChart     = "prometheus-community/kube-prometheus-stack"
 )
 
+// discoveryTimeout controls how long to wait for Prometheus after install. Swappable for tests.
+var discoveryTimeout = 3 * time.Minute
+
+// HelmRunner is a function that executes a helm command. It can be replaced
+// in tests to avoid shelling out.
+type HelmRunner func(kubeCtx string, args ...string) error
+
+// defaultHelmRunner shells out to the real helm binary.
+func defaultHelmRunner(kubeCtx string, args ...string) error {
+	if kubeCtx != "" {
+		args = append([]string{"--kube-context", kubeCtx}, args...)
+	}
+	cmd := exec.Command("helm", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(output))
+	}
+	return nil
+}
+
+// helmRunner is the package-level helm runner, swappable for testing.
+var helmRunner HelmRunner = defaultHelmRunner
+
+// helmChecker verifies helm is available. Swappable for testing.
+var helmChecker = func() error {
+	_, err := exec.LookPath("helm")
+	return err
+}
+
 // InstallPrometheus installs kube-prometheus-stack via Helm into the cluster.
 // It returns the Prometheus service candidate once ready.
 func (c *Client) InstallPrometheus(kubeCtx string, onStatus func(string)) (PrometheusCandidate, error) {
 	// Check helm is available
-	if _, err := exec.LookPath("helm"); err != nil {
+	if err := helmChecker(); err != nil {
 		return PrometheusCandidate{}, fmt.Errorf("helm not found in PATH — install it from https://helm.sh/docs/intro/install/")
 	}
 
@@ -38,17 +67,17 @@ func (c *Client) InstallPrometheus(kubeCtx string, onStatus func(string)) (Prome
 
 	// Add the helm repo
 	onStatus("Adding prometheus-community Helm repo...")
-	if err := runHelm(kubeCtx, "repo", "add", "prometheus-community", "https://prometheus-community.github.io/helm-charts"); err != nil {
+	if err := helmRunner(kubeCtx, "repo", "add", "prometheus-community", "https://prometheus-community.github.io/helm-charts"); err != nil {
 		// Ignore "already exists" errors
 		_ = err
 	}
-	if err := runHelm(kubeCtx, "repo", "update"); err != nil {
+	if err := helmRunner(kubeCtx, "repo", "update"); err != nil {
 		return PrometheusCandidate{}, fmt.Errorf("updating helm repos: %w", err)
 	}
 
 	// Install kube-prometheus-stack
 	onStatus("Installing kube-prometheus-stack (this may take a few minutes)...")
-	err = runHelm(kubeCtx,
+	err = helmRunner(kubeCtx,
 		"upgrade", "--install", defaultPromRelease, defaultPromChart,
 		"--namespace", defaultPromNamespace,
 		"--set", "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false",
@@ -61,7 +90,7 @@ func (c *Client) InstallPrometheus(kubeCtx string, onStatus func(string)) (Prome
 	// Wait for the Prometheus service to appear
 	onStatus("Waiting for Prometheus to be ready...")
 	var candidate PrometheusCandidate
-	deadline := time.Now().Add(3 * time.Minute)
+	deadline := time.Now().Add(discoveryTimeout)
 	for time.Now().Before(deadline) {
 		candidates, err := c.DiscoverPrometheus()
 		if err == nil && len(candidates) > 0 {
@@ -86,17 +115,4 @@ func (c *Client) InstallPrometheus(kubeCtx string, onStatus func(string)) (Prome
 
 	onStatus(fmt.Sprintf("Prometheus installed: %s", candidate.Display()))
 	return candidate, nil
-}
-
-// runHelm executes a helm command with an optional kube context.
-func runHelm(kubeCtx string, args ...string) error {
-	if kubeCtx != "" {
-		args = append([]string{"--kube-context", kubeCtx}, args...)
-	}
-	cmd := exec.Command("helm", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %s", err, string(output))
-	}
-	return nil
 }
