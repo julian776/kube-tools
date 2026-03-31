@@ -15,7 +15,7 @@ import (
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Configure kube-tools for the current cluster",
-	Long:  "Interactively discover and configure Prometheus for the current kube context.",
+	Long:  "Interactively discover and configure Prometheus for the current kube context. If no Prometheus is found, offers to install one via Helm.",
 	RunE:  runSetup,
 }
 
@@ -42,7 +42,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to discover prometheus: %w", err)
 	}
 
-	// Build choices: discovered services + manual URL option
+	// Build choices
 	var choices []setupChoice
 	for _, c := range candidates {
 		choices = append(choices, setupChoice{
@@ -50,16 +50,23 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			candidate: &c,
 		})
 	}
+
+	if len(candidates) == 0 {
+		fmt.Println("No Prometheus services found in the cluster.")
+		fmt.Println()
+		// Offer install as the first option
+		choices = append(choices, setupChoice{
+			label:   "  Install Prometheus (kube-prometheus-stack via Helm)",
+			install: true,
+		})
+	} else {
+		fmt.Printf("Found %d Prometheus service(s):\n\n", len(candidates))
+	}
+
 	choices = append(choices, setupChoice{
 		label:  "  Enter a Prometheus URL manually",
 		manual: true,
 	})
-
-	if len(candidates) == 0 {
-		fmt.Println("No Prometheus services found in the cluster.")
-	} else {
-		fmt.Printf("Found %d Prometheus service(s):\n\n", len(candidates))
-	}
 
 	// Run interactive picker
 	m := newSetupModel(choices, ctxName)
@@ -75,23 +82,49 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Load existing config
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+	// Handle install
+	if final.wantInstall {
+		fmt.Println()
+		candidate, err := client.InstallPrometheus(kubeContext, func(status string) {
+			fmt.Printf("  %s\n", status)
+		})
+		if err != nil {
+			return fmt.Errorf("installation failed: %w", err)
+		}
+
+		return saveConfig(ctxName, config.PrometheusRef{
+			ServiceName: candidate.ServiceName,
+			Namespace:   candidate.Namespace,
+			Port:        candidate.Port,
+		})
 	}
 
+	// Handle manual URL
 	if final.manualURL != "" {
-		cfg.SetPrometheus(ctxName, config.PrometheusRef{
+		return saveConfig(ctxName, config.PrometheusRef{
 			URL: final.manualURL,
 		})
-	} else if final.selected != nil {
-		cfg.SetPrometheus(ctxName, config.PrometheusRef{
+	}
+
+	// Handle selected service
+	if final.selected != nil {
+		return saveConfig(ctxName, config.PrometheusRef{
 			ServiceName: final.selected.ServiceName,
 			Namespace:   final.selected.Namespace,
 			Port:        final.selected.Port,
 		})
 	}
+
+	return nil
+}
+
+func saveConfig(ctxName string, ref config.PrometheusRef) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	cfg.SetPrometheus(ctxName, ref)
 
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -99,7 +132,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	cfgPath, _ := config.Path()
 	fmt.Printf("\nConfiguration saved to %s\n", cfgPath)
-	fmt.Println("kube-tools will now use this Prometheus automatically for graph commands.")
+	fmt.Println("kube-tools will now use Prometheus automatically for graph commands.")
 	return nil
 }
 
@@ -109,18 +142,20 @@ type setupChoice struct {
 	label     string
 	candidate *kube.PrometheusCandidate
 	manual    bool
+	install   bool
 }
 
 type setupModel struct {
-	choices    []setupChoice
-	cursor     int
-	ctxName    string
-	selected   *kube.PrometheusCandidate
-	manualURL  string
-	inputMode  bool
-	inputValue string
-	cancelled  bool
-	done       bool
+	choices     []setupChoice
+	cursor      int
+	ctxName     string
+	selected    *kube.PrometheusCandidate
+	manualURL   string
+	wantInstall bool
+	inputMode   bool
+	inputValue  string
+	cancelled   bool
+	done        bool
 }
 
 func newSetupModel(choices []setupChoice, ctxName string) setupModel {
@@ -163,6 +198,11 @@ func (m setupModel) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if choice.manual {
 			m.inputMode = true
 			return m, nil
+		}
+		if choice.install {
+			m.wantInstall = true
+			m.done = true
+			return m, tea.Quit
 		}
 		m.selected = choice.candidate
 		m.done = true
